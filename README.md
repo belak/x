@@ -54,6 +54,35 @@ ctx = slogx.WithLogger(ctx, logger)
 slogx.FromContext(ctx).Info("handling request", slogx.Err(err))
 ```
 
+### httpx
+
+[godoc](https://pkg.go.dev/github.com/belak/x/httpx)
+
+HTTP server utilities built on top of `net/http`: a router with middleware
+support and route grouping, JSON request/response helpers, flash messages,
+client IP resolution behind trusted proxies, and graceful shutdown.
+
+```go
+logger := slogx.New(slogx.FormatPretty, slogx.LevelInfo)
+
+r := httpx.NewRouter(logger)
+r.Use(httpx.WithRequestID, httpx.Logging(logger), httpx.Recovery(logger))
+
+r.Handle("GET /api/hello", func(w http.ResponseWriter, r *http.Request) {
+    httpx.RespondJSON(w, http.StatusOK, map[string]string{"hello": "world"})
+})
+
+r.Group(func(r *httpx.Router) {
+    r.Use(requireAuth)
+    r.Handle("POST /api/items", createItem)
+})
+
+ctx, cancel := httpx.WithSignalShutdown(context.Background(), logger)
+defer cancel()
+
+r.ListenAndServe(ctx, ":8080")
+```
+
 ## License
 
 MIT
