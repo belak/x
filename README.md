@@ -27,6 +27,33 @@ func main() {
 }
 ```
 
+### slogx
+
+[godoc](https://pkg.go.dev/github.com/belak/x/slogx)
+
+Wraps `log/slog` with a few conveniences: a `New` function that creates and
+sets the default logger in one call, context-based logger passing, and a
+`Level` and `Format` type that both implement `flag.Value` for easy CLI
+wiring.
+
+```go
+var (
+    logLevel  slogx.Level  = slogx.LevelInfo
+    logFormat slogx.Format = slogx.FormatPretty
+)
+
+flag.Var(&logLevel, "log-level", "debug, info, warn, error")
+flag.Var(&logFormat, "log-format", "pretty, json, text")
+flag.Parse()
+
+logger := slogx.New(logFormat, logLevel)
+logger.Info("started", slogx.String("version", version))
+
+// Attach to context and retrieve downstream.
+ctx = slogx.WithLogger(ctx, logger)
+slogx.FromContext(ctx).Info("handling request", slogx.Err(err))
+```
+
 ## License
 
 MIT
