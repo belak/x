@@ -83,6 +83,32 @@ defer cancel()
 r.ListenAndServe(ctx, ":8080")
 ```
 
+### migrate
+
+[godoc](https://pkg.go.dev/github.com/belak/x/migrate)
+
+Minimal SQL migration runner. Migrations are `.sql` files read from one or
+more named `Layer` instances (each wrapping an `fs.FS`) and applied in
+lexicographic order across all layers. Applied versions are tracked in a
+`schema_migrations` table. SQLite and PostgreSQL dialects are included.
+
+```go
+//go:embed migrations
+var migrations embed.FS
+
+db, _ := sql.Open("sqlite3", "app.db")
+m := migrate.New(
+    migrate.NewDriver(db, migrate.SQLiteDialect{}),
+    migrate.WithLayers(migrate.Layer{Name: "app", FS: migrations}),
+)
+
+result, err := m.Migrate(ctx)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("applied %d migrations\n", len(result.Applied))
+```
+
 ## License
 
 MIT
