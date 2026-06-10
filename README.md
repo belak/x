@@ -5,10 +5,40 @@ Personal Go utility packages.
 ## Packages
 
 - **fsx** - filesystem wrappers and utilities
+- **pass** - multi-scheme password hashing (argon2id default, bcrypt migration, Django import)
 - **httpx** - HTTP middleware, routing, JSON helpers, flash messages, client IP resolution
 - **migrate** - minimal SQL migration runner with multi-layer fs.FS support
 - **slogx** - structured logging helpers wrapping `log/slog`
 - **versionx** - VCS build info version extraction
+
+### pass
+
+[godoc](https://pkg.go.dev/github.com/belak/x/pass)
+
+Multi-scheme password hashing with transparent migration. Argon2id is the
+default; bcrypt is accepted for migrating existing stores. Django's
+`argon2$argon2id$...` hash format is also supported.
+
+```go
+// Hash a new password (argon2id).
+hash, err := pass.Hash(password)
+
+// Verify on login, rehash transparently if needed.
+if err := pass.Verify(stored, input); err != nil {
+    return err // pass.ErrMismatch or internal error
+}
+if pass.NeedsUpdate(stored) {
+    if newHash, err := pass.Hash(input); err == nil {
+        _ = db.UpdatePasswordHash(ctx, userID, newHash)
+    }
+}
+
+// Custom context: argon2id with tuned params, bcrypt for migration.
+ctx := pass.NewContext(
+    pass.Argon2id{Memory: 128 * 1024, Iterations: 2},
+    pass.Bcrypt{},
+)
+```
 
 ### fsx
 
