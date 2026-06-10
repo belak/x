@@ -5,11 +5,13 @@
 //
 // Typical login flow:
 //
-//	if err := pass.Verify(stored, input); err != nil {
+//	pc := pass.NewDefaultContext()
+//
+//	if err := pc.Verify(stored, input); err != nil {
 //	    return err
 //	}
-//	if pass.NeedsUpdate(stored) {
-//	    if newHash, err := pass.Hash(input); err == nil {
+//	if pc.NeedsUpdate(stored) {
+//	    if newHash, err := pc.Hash(input); err == nil {
 //	        _ = db.UpdatePasswordHash(ctx, userID, newHash)
 //	    }
 //	}
@@ -18,6 +20,7 @@ package pass
 import (
 	"errors"
 	"sync"
+	"testing"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -117,18 +120,13 @@ func NewTestContext() *Context {
 	)
 }
 
-// Default is a Context using RFC 9106's memory-constrained Argon2id parameters
-// as the default, with bcrypt accepted for migration.
-var Default = NewContext(RFC9106LowMemory, Bcrypt{})
-
-// Hash hashes password using Default.
-func Hash(password string) (string, error) { return Default.Hash(password) }
-
-// Verify checks password against hash using Default.
-func Verify(hash, password string) error { return Default.Verify(hash, password) }
-
-// NeedsUpdate reports whether hash should be rehashed according to Default.
-func NeedsUpdate(hash string) bool { return Default.NeedsUpdate(hash) }
-
-// DummyVerify calls DummyVerify on Default.
-func DummyVerify(password string) { Default.DummyVerify(password) }
+// NewDefaultContext returns a Context suitable for most applications. Outside
+// of tests it uses RFC 9106 low-memory Argon2id as the primary hasher with
+// bcrypt accepted for migration. Under go test it delegates to NewTestContext
+// so that test suites do not pay full hashing costs.
+func NewDefaultContext() *Context {
+	if testing.Testing() {
+		return NewTestContext()
+	}
+	return NewContext(RFC9106LowMemory, Bcrypt{})
+}

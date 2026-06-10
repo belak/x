@@ -181,14 +181,16 @@ func TestContext_DummyVerify(t *testing.T) {
 	ctx.DummyVerify("another call")
 }
 
-func TestPackageLevel(t *testing.T) {
-	hash, err := Hash("password")
+func TestNewDefaultContext(t *testing.T) {
+	ctx := NewDefaultContext()
+
+	hash, err := ctx.Hash("password")
 	assert.NoError(t, err)
 
-	assert.NoError(t, Verify(hash, "password"))
-	assert.IsError(t, Verify(hash, "wrong"), ErrMismatch)
-	assert.False(t, NeedsUpdate(hash))
+	assert.NoError(t, ctx.Verify(hash, "password"))
+	assert.IsError(t, ctx.Verify(hash, "wrong"), ErrMismatch)
+	assert.False(t, ctx.NeedsUpdate(hash))
 
 	// DummyVerify should not panic.
-	DummyVerify("password")
+	ctx.DummyVerify("password")
 }
