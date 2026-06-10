@@ -4,10 +4,29 @@ Personal Go utility packages.
 
 ## Packages
 
+- **fsx** - filesystem wrappers and utilities
 - **httpx** - HTTP middleware, routing, JSON helpers, flash messages, client IP resolution
 - **migrate** - minimal SQL migration runner with multi-layer fs.FS support
 - **slogx** - structured logging helpers wrapping `log/slog`
 - **versionx** - VCS build info version extraction
+
+### fsx
+
+[godoc](https://pkg.go.dev/github.com/belak/x/fsx)
+
+Filesystem wrappers and utilities.
+
+`NoListFS` wraps any `http.FileSystem` and disables directory listings: any
+directory without an `index.html` returns a 404 instead of a file listing.
+
+```go
+//go:embed static
+var staticFiles embed.FS
+
+http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(
+    fsx.NoListFS{FS: http.FS(staticFiles)},
+)))
+```
 
 ### httpx
 
