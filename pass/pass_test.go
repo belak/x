@@ -11,7 +11,7 @@ import (
 const djangoHash = "argon2$argon2id$v=19$m=102400,t=2,p=8$2Edzkzz0lFpqNgSJVwwnPA$Lfy0zIbXPqhjiFLb9eBr3UOA37z77D9+lXA4CnE7mzc"
 
 func TestArgon2id_HashVerify(t *testing.T) {
-	h := Argon2id{}
+	h := Argon2id{Memory: 8 * 1024, Iterations: 1, Parallelism: 1}
 
 	hash, err := h.Hash("password")
 	assert.NoError(t, err)
@@ -101,7 +101,7 @@ func TestBcrypt_NeedsUpdate(t *testing.T) {
 }
 
 func TestContext_Hash(t *testing.T) {
-	ctx := NewContext(Argon2id{}, Bcrypt{Cost: 4})
+	ctx := NewTestContext()
 
 	hash, err := ctx.Hash("password")
 	assert.NoError(t, err)
@@ -109,7 +109,7 @@ func TestContext_Hash(t *testing.T) {
 }
 
 func TestContext_Verify(t *testing.T) {
-	ctx := NewContext(Argon2id{}, Bcrypt{Cost: 4})
+	ctx := NewTestContext()
 
 	t.Run("argon2id hash", func(t *testing.T) {
 		hash, _ := Argon2id{}.Hash("password")
@@ -132,7 +132,7 @@ func TestContext_Verify(t *testing.T) {
 }
 
 func TestContext_NeedsUpdate(t *testing.T) {
-	ctx := NewContext(Argon2id{}, Bcrypt{Cost: 4})
+	ctx := NewTestContext()
 
 	t.Run("fresh default hash", func(t *testing.T) {
 		hash, _ := ctx.Hash("password")
@@ -170,7 +170,7 @@ func TestRFC9106Params(t *testing.T) {
 }
 
 func TestContext_DummyVerify(t *testing.T) {
-	ctx := NewContext(Argon2id{Iterations: 1, Memory: 8 * 1024, Parallelism: 1}, Bcrypt{Cost: 4})
+	ctx := NewTestContext()
 
 	// Should not panic and should complete without error regardless of input.
 	ctx.DummyVerify("any password")

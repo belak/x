@@ -18,6 +18,8 @@ package pass
 import (
 	"errors"
 	"sync"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // ErrMismatch is returned by Verify when the password does not match the hash.
@@ -104,6 +106,15 @@ func (c *Context) NeedsUpdate(hash string) bool {
 		}
 	}
 	return false
+}
+
+// NewTestContext returns a Context with minimal-cost hashers for use in tests.
+// The parameters are intentionally weak — do not use in production.
+func NewTestContext() *Context {
+	return NewContext(
+		Argon2id{Memory: 8 * 1024, Iterations: 1, Parallelism: 1},
+		Bcrypt{Cost: bcrypt.MinCost},
+	)
 }
 
 // Default is a Context using RFC 9106's memory-constrained Argon2id parameters
