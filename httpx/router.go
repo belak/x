@@ -83,11 +83,10 @@ func (r *Router) ListenAndServe(ctx context.Context, bind string) error {
 	var cleanup func() error
 	var err error
 
-	if strings.HasPrefix(bind, "unix:") {
-		path := strings.TrimPrefix(bind, "unix:")
+	if path, ok := strings.CutPrefix(bind, "unix:"); ok {
 		r.logger.Info("starting http listener", slogx.String("socket", path))
 
-		_ = os.Remove(path) // remove stale socket
+		_ = os.Remove(path)
 		listener, err = net.Listen("unix", path)
 		if err != nil {
 			return fmt.Errorf("creating unix socket: %w", err)
@@ -144,35 +143,6 @@ func (r *Router) ListenAndServe(ctx context.Context, bind string) error {
 	}
 
 	r.logger.Info("server stopped")
-	return nil
-}
-
-// ListenAndServe starts an HTTP server with standard timeouts and graceful
-// shutdown when ctx is cancelled. It is the non-Router equivalent of
-// Router.ListenAndServe for callers that already have an http.Handler.
-func ListenAndServe(ctx context.Context, addr string, handler http.Handler, logger *slog.Logger) error {
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: DefaultReadHeaderTimeout,
-		ReadTimeout:       DefaultReadTimeout,
-		WriteTimeout:      DefaultWriteTimeout,
-		IdleTimeout:       DefaultIdleTimeout,
-	}
-
-	//nolint:gosec // G118: shutdown is driven by ctx, not the cancelled ctx itself.
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			logger.Error("graceful shutdown failed", slogx.Err(err))
-		}
-	}()
-
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
 	return nil
 }
 
