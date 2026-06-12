@@ -28,15 +28,13 @@ const (
 
 // Router wraps http.ServeMux with middleware support and route grouping.
 type Router struct {
-	logger      *slog.Logger
 	middlewares []Middleware
 	inner       *http.ServeMux
 }
 
 // NewRouter creates a Router with optional middleware already applied.
-func NewRouter(logger *slog.Logger) *Router {
+func NewRouter() *Router {
 	return &Router{
-		logger:      logger,
 		inner:       http.NewServeMux(),
 		middlewares: nil,
 	}
@@ -53,7 +51,6 @@ func (r *Router) Use(middlewares ...Middleware) {
 // the parent.
 func (r *Router) Group(fn func(*Router)) {
 	child := &Router{
-		logger:      r.logger,
 		middlewares: slices.Clone(r.middlewares),
 		inner:       r.inner,
 	}
