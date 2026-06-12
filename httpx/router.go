@@ -75,16 +75,16 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.inner.ServeHTTP(w, req)
 }
 
-// ListenAndServe starts the HTTP server. It supports both TCP ("host:port")
-// and Unix socket ("unix:/path/to/socket") bind addresses. The server
-// shuts down gracefully when ctx is cancelled.
-func (r *Router) ListenAndServe(ctx context.Context, bind string) error {
+// ListenAndServe starts an HTTP server with handler. It supports both TCP
+// ("host:port") and Unix socket ("unix:/path/to/socket") bind addresses. The
+// server shuts down gracefully when ctx is cancelled.
+func ListenAndServe(ctx context.Context, addr string, handler http.Handler, logger *slog.Logger) error {
 	var listener net.Listener
 	var cleanup func() error
 	var err error
 
-	if path, ok := strings.CutPrefix(bind, "unix:"); ok {
-		r.logger.Info("starting http listener", slogx.String("socket", path))
+	if path, ok := strings.CutPrefix(addr, "unix:"); ok {
+		logger.Info("starting http listener", slogx.String("socket", path))
 
 		_ = os.Remove(path)
 		listener, err = net.Listen("unix", path)
@@ -99,8 +99,8 @@ func (r *Router) ListenAndServe(ctx context.Context, bind string) error {
 		}
 		cleanup = func() error { return os.Remove(path) }
 	} else {
-		r.logger.Info("starting http listener", slogx.String("bind", bind))
-		listener, err = net.Listen("tcp", bind)
+		logger.Info("starting http listener", slogx.String("bind", addr))
+		listener, err = net.Listen("tcp", addr)
 		if err != nil {
 			return fmt.Errorf("creating tcp listener: %w", err)
 		}
@@ -108,7 +108,7 @@ func (r *Router) ListenAndServe(ctx context.Context, bind string) error {
 	}
 
 	server := &http.Server{
-		Handler:           r,
+		Handler:           handler,
 		ReadHeaderTimeout: DefaultReadHeaderTimeout,
 		ReadTimeout:       DefaultReadTimeout,
 		WriteTimeout:      DefaultWriteTimeout,
@@ -125,24 +125,24 @@ func (r *Router) ListenAndServe(ctx context.Context, bind string) error {
 		}
 		return nil
 	case <-ctx.Done():
-		r.logger.Info("shutting down server")
+		logger.Info("shutting down server")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		r.logger.Error("graceful shutdown failed", slogx.Err(err))
+		logger.Error("graceful shutdown failed", slogx.Err(err))
 		_ = listener.Close()
 		_ = cleanup()
 		return err
 	}
 
 	if err := cleanup(); err != nil {
-		r.logger.Error("cleanup failed", slogx.Err(err))
+		logger.Error("cleanup failed", slogx.Err(err))
 	}
 
-	r.logger.Info("server stopped")
+	logger.Info("server stopped")
 	return nil
 }
 
