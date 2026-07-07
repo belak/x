@@ -80,9 +80,14 @@ func Logging(logger *slog.Logger) Middleware {
 	}
 }
 
-// Recovery creates middleware that recovers from panics, logs the error
-// and stack trace, and returns 500.
-func Recovery(logger *slog.Logger) Middleware {
+// PanicHandlerFunc handles a recovered panic. The third argument is the value
+// passed to panic — inspect its type to decide what to show the user.
+type PanicHandlerFunc func(http.ResponseWriter, *http.Request, any)
+
+// Recovery creates middleware that recovers from panics, logs the error and
+// stack trace, then calls errHandler. If errHandler is nil, a plain-text 500
+// response is written.
+func Recovery(logger *slog.Logger, errHandler PanicHandlerFunc) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
@@ -93,7 +98,11 @@ func Recovery(logger *slog.Logger) Middleware {
 						slogx.String("path", r.URL.Path),
 						slogx.String("stack", string(debug.Stack())),
 					)
-					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					if errHandler != nil {
+						errHandler(w, r, err)
+					} else {
+						http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					}
 				}
 			}()
 			next.ServeHTTP(w, r)
