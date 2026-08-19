@@ -26,14 +26,31 @@ import (
 // slog.HandlerOptions.Level and similar interfaces.
 type Level slog.Level
 
+var (
+	_ encoding.TextUnmarshaler = (*Level)(nil)
+	_ encoding.TextMarshaler   = Level(0)
+	_ slog.Leveler             = Level(0)
+)
+
 // Level implements slog.Leveler.
 func (l Level) Level() slog.Level { return slog.Level(l) }
 
-func (l Level) MarshalText() ([]byte, error) { return slog.Level(l).MarshalText() }
+// MarshalText emits the lowercase level name ("info", "warn+2") to match how
+// Format renders and to keep flag defaults looking like the values callers
+// type.
+func (l Level) MarshalText() ([]byte, error) {
+	b, err := slog.Level(l).MarshalText()
+	if err != nil {
+		return nil, err
+	}
+	return bytes.ToLower(b), nil
+}
 
+// UnmarshalText accepts any casing ("info", "INFO", "Info"), including the
+// offset forms slog supports such as "warn+2".
 func (l *Level) UnmarshalText(text []byte) error {
 	var sl slog.Level
-	if err := sl.UnmarshalText(text); err != nil {
+	if err := sl.UnmarshalText(bytes.ToUpper(text)); err != nil {
 		return err
 	}
 	*l = Level(sl)
