@@ -2,7 +2,6 @@ package fsx_test
 
 import (
 	"errors"
-	"net/http"
 	"os"
 	"testing"
 	"testing/fstest"
@@ -17,23 +16,23 @@ func TestNoListFS(t *testing.T) {
 		"listed/index.html": {Data: []byte("<html>listed</html>")},
 	}
 
-	fs := fsx.NoListFS{FS: http.FS(mem)}
+	fsys := fsx.NoListFS{FS: mem}
 
 	tests := []struct {
 		path    string
 		wantErr error
 	}{
-		{"/index.html", nil},
-		{"/assets/style.css", nil},
-		{"/listed/index.html", nil},
-		{"/listed", nil},            // has index.html, allowed
-		{"/assets", os.ErrNotExist}, // no index.html, blocked
-		{"/missing", os.ErrNotExist},
+		{"index.html", nil},
+		{"assets/style.css", nil},
+		{"listed/index.html", nil},
+		{"listed", nil},            // has index.html, allowed
+		{"assets", os.ErrNotExist}, // no index.html, blocked
+		{"missing", os.ErrNotExist},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			f, err := fs.Open(tt.path)
+			f, err := fsys.Open(tt.path)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
 					t.Errorf("Open(%q) error = %v, want %v", tt.path, err, tt.wantErr)
@@ -59,22 +58,22 @@ func TestMergedFS(t *testing.T) {
 		"shared.css": {Data: []byte("common")},
 	}
 
-	fs := fsx.MergedFS{http.FS(auth), http.FS(common)}
+	fsys := fsx.MergedFS{auth, common}
 
 	tests := []struct {
 		path    string
 		want    string
 		wantErr error
 	}{
-		{path: "/login.html", want: "<html>login</html>"},
-		{path: "/style.css", want: "<css>common</css>"},
-		{path: "/shared.css", want: "auth"}, // first match wins
-		{path: "/missing", wantErr: os.ErrNotExist},
+		{path: "login.html", want: "<html>login</html>"},
+		{path: "style.css", want: "<css>common</css>"},
+		{path: "shared.css", want: "auth"}, // first match wins
+		{path: "missing", wantErr: os.ErrNotExist},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			f, err := fs.Open(tt.path)
+			f, err := fsys.Open(tt.path)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
 					t.Errorf("Open(%q) error = %v, want %v", tt.path, err, tt.wantErr)
@@ -96,9 +95,9 @@ func TestMergedFS(t *testing.T) {
 }
 
 func TestMergedFSEmpty(t *testing.T) {
-	fs := fsx.MergedFS{}
+	fsys := fsx.MergedFS{}
 
-	_, err := fs.Open("/anything")
+	_, err := fsys.Open("anything")
 	if !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("Open() error = %v, want %v", err, os.ErrNotExist)
 	}

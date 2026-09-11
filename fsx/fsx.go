@@ -1,19 +1,19 @@
 package fsx
 
 import (
-	"net/http"
+	"io/fs"
 	"os"
-	"path/filepath"
+	"path"
 )
 
-// NoListFS wraps an http.FileSystem and disables directory listings by
-// returning os.ErrNotExist for any directory that lacks an index.html.
+// NoListFS wraps an fs.FS and disables directory listings by returning
+// os.ErrNotExist for any directory that lacks an index.html.
 type NoListFS struct {
-	FS http.FileSystem
+	FS fs.FS
 }
 
-func (n NoListFS) Open(path string) (http.File, error) {
-	f, err := n.FS.Open(path)
+func (n NoListFS) Open(name string) (fs.File, error) {
+	f, err := n.FS.Open(name)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func (n NoListFS) Open(path string) (http.File, error) {
 	}
 
 	if s.IsDir() {
-		if _, err := n.FS.Open(filepath.Join(path, "index.html")); err != nil {
+		if _, err := n.FS.Open(path.Join(name, "index.html")); err != nil {
 			f.Close()
 			return nil, os.ErrNotExist
 		}
@@ -34,19 +34,19 @@ func (n NoListFS) Open(path string) (http.File, error) {
 	return f, nil
 }
 
-// MergedFS combines multiple http.FileSystems into one, trying each in
-// order and returning the first successful match. This is useful for
-// serving assets from several sources, such as combining a shared
-// "common" package with an app-specific one.
-type MergedFS []http.FileSystem
+// MergedFS combines multiple fs.FSs into one, trying each in order and
+// returning the first successful match. This is useful for serving assets from
+// several sources, such as combining a shared "common" package with an
+// app-specific one.
+type MergedFS []fs.FS
 
-func (m MergedFS) Open(path string) (http.File, error) {
+func (m MergedFS) Open(name string) (fs.File, error) {
 	var err error
 
-	for _, fs := range m {
-		var f http.File
+	for _, fsys := range m {
+		var f fs.File
 
-		f, err = fs.Open(path)
+		f, err = fsys.Open(name)
 		if err == nil {
 			return f, nil
 		}
