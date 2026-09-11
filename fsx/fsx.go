@@ -33,3 +33,28 @@ func (n NoListFS) Open(path string) (http.File, error) {
 
 	return f, nil
 }
+
+// MergedFS combines multiple http.FileSystems into one, trying each in
+// order and returning the first successful match. This is useful for
+// serving assets from several sources, such as combining a shared
+// "common" package with an app-specific one.
+type MergedFS []http.FileSystem
+
+func (m MergedFS) Open(path string) (http.File, error) {
+	var err error
+
+	for _, fs := range m {
+		var f http.File
+
+		f, err = fs.Open(path)
+		if err == nil {
+			return f, nil
+		}
+	}
+
+	if err == nil {
+		err = os.ErrNotExist
+	}
+
+	return nil, err
+}
