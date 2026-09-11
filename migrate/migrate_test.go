@@ -7,12 +7,12 @@ import (
 	"testing/fstest"
 
 	"github.com/alecthomas/assert/v2"
-	_ "modernc.org/sqlite"
+	_ "github.com/ncruces/go-sqlite3/driver"
 )
 
 func openTestDB(t *testing.T) (*sql.DB, DB) {
 	t.Helper()
-	db, err := sql.Open("sqlite", ":memory:")
+	db, err := sql.Open("sqlite3", ":memory:")
 	assert.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 	return db, NewDriver(db, SQLiteDialect{})
