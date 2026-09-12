@@ -26,9 +26,9 @@ func TestMigrateAppliesInOrder(t *testing.T) {
 	raw, db := openTestDB(t)
 
 	fsys := fstest.MapFS{
-		"migrations/0002_second.sql": {Data: []byte("CREATE TABLE b (id INTEGER);")},
-		"migrations/0001_first.sql":  {Data: []byte("CREATE TABLE a (id INTEGER);")},
-		"migrations/0003_third.sql":  {Data: []byte("CREATE TABLE c (id INTEGER);")},
+		"0002_second.sql": {Data: []byte("CREATE TABLE b (id INTEGER);")},
+		"0001_first.sql":  {Data: []byte("CREATE TABLE a (id INTEGER);")},
+		"0003_third.sql":  {Data: []byte("CREATE TABLE c (id INTEGER);")},
 	}
 
 	m := New(db, WithLayers(testLayer("test", fsys)))
@@ -51,7 +51,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	_, db := openTestDB(t)
 
 	fsys := fstest.MapFS{
-		"migrations/0001_init.sql": {Data: []byte("CREATE TABLE t (id INTEGER);")},
+		"0001_init.sql": {Data: []byte("CREATE TABLE t (id INTEGER);")},
 	}
 
 	m := New(db, WithLayers(testLayer("test", fsys)))
@@ -70,7 +70,7 @@ func TestMigrateIncremental(t *testing.T) {
 	_, db := openTestDB(t)
 
 	fsys1 := fstest.MapFS{
-		"migrations/0001_init.sql": {Data: []byte("CREATE TABLE a (id INTEGER);")},
+		"0001_init.sql": {Data: []byte("CREATE TABLE a (id INTEGER);")},
 	}
 
 	m1 := New(db, WithLayers(testLayer("test", fsys1)))
@@ -79,8 +79,8 @@ func TestMigrateIncremental(t *testing.T) {
 	assert.Equal(t, 1, len(r1.Applied))
 
 	fsys2 := fstest.MapFS{
-		"migrations/0001_init.sql":  {Data: []byte("CREATE TABLE a (id INTEGER);")},
-		"migrations/0002_add_b.sql": {Data: []byte("CREATE TABLE b (id INTEGER);")},
+		"0001_init.sql":  {Data: []byte("CREATE TABLE a (id INTEGER);")},
+		"0002_add_b.sql": {Data: []byte("CREATE TABLE b (id INTEGER);")},
 	}
 
 	m2 := New(db, WithLayers(testLayer("test", fsys2)))
@@ -95,10 +95,10 @@ func TestMigrateMultipleLayers(t *testing.T) {
 	_, db := openTestDB(t)
 
 	base := fstest.MapFS{
-		"migrations/0001_users.sql": {Data: []byte("CREATE TABLE users (id INTEGER);")},
+		"0001_users.sql": {Data: []byte("CREATE TABLE users (id INTEGER);")},
 	}
 	app := fstest.MapFS{
-		"migrations/0002_items.sql": {Data: []byte("CREATE TABLE items (id INTEGER, user_id INTEGER REFERENCES users(id));")},
+		"0002_items.sql": {Data: []byte("CREATE TABLE items (id INTEGER, user_id INTEGER REFERENCES users(id));")},
 	}
 
 	m := New(db, WithLayers(testLayer("base", base), testLayer("app", app)))
@@ -113,10 +113,10 @@ func TestMigrateSameFilenameLayerOrder(t *testing.T) {
 	_, db := openTestDB(t)
 
 	base := fstest.MapFS{
-		"migrations/20250101_initial.sql": {Data: []byte("CREATE TABLE users (id INTEGER PRIMARY KEY);")},
+		"20250101_initial.sql": {Data: []byte("CREATE TABLE users (id INTEGER PRIMARY KEY);")},
 	}
 	app := fstest.MapFS{
-		"migrations/20250101_initial.sql": {Data: []byte("CREATE TABLE items (id INTEGER, user_id INTEGER REFERENCES users(id));")},
+		"20250101_initial.sql": {Data: []byte("CREATE TABLE items (id INTEGER, user_id INTEGER REFERENCES users(id));")},
 	}
 
 	m := New(db, WithLayers(testLayer("base", base), testLayer("app", app)))
@@ -131,10 +131,10 @@ func TestMigrateGlobalFilenameSort(t *testing.T) {
 	_, db := openTestDB(t)
 
 	alpha := fstest.MapFS{
-		"migrations/20240102_b.sql": {Data: []byte("CREATE TABLE b (id INTEGER);")},
+		"20240102_b.sql": {Data: []byte("CREATE TABLE b (id INTEGER);")},
 	}
 	zebra := fstest.MapFS{
-		"migrations/20240101_a.sql": {Data: []byte("CREATE TABLE a (id INTEGER);")},
+		"20240101_a.sql": {Data: []byte("CREATE TABLE a (id INTEGER);")},
 	}
 
 	m := New(db, WithLayers(testLayer("alpha", alpha), testLayer("zebra", zebra)))
@@ -149,8 +149,8 @@ func TestMigrateRollsBackOnError(t *testing.T) {
 	raw, db := openTestDB(t)
 
 	fsys := fstest.MapFS{
-		"migrations/0001_good.sql": {Data: []byte("CREATE TABLE good (id INTEGER);")},
-		"migrations/0002_bad.sql":  {Data: []byte("INVALID SQL SYNTAX HERE;")},
+		"0001_good.sql": {Data: []byte("CREATE TABLE good (id INTEGER);")},
+		"0002_bad.sql":  {Data: []byte("INVALID SQL SYNTAX HERE;")},
 	}
 
 	m := New(db, WithLayers(testLayer("test", fsys)))
@@ -172,8 +172,8 @@ func TestPending(t *testing.T) {
 	_, db := openTestDB(t)
 
 	fsys := fstest.MapFS{
-		"migrations/0001_a.sql": {Data: []byte("CREATE TABLE a (id INTEGER);")},
-		"migrations/0002_b.sql": {Data: []byte("CREATE TABLE b (id INTEGER);")},
+		"0001_a.sql": {Data: []byte("CREATE TABLE a (id INTEGER);")},
+		"0002_b.sql": {Data: []byte("CREATE TABLE b (id INTEGER);")},
 	}
 
 	m := New(db, WithLayers(testLayer("test", fsys)))
@@ -217,7 +217,7 @@ func TestEmptyMigrations(t *testing.T) {
 	_, db := openTestDB(t)
 
 	fsys := fstest.MapFS{
-		"migrations/.gitkeep": {Data: []byte("")},
+		".gitkeep": {Data: []byte("")},
 	}
 
 	m := New(db, WithLayers(testLayer("test", fsys)))

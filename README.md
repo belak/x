@@ -96,14 +96,24 @@ more named `Layer` instances (each wrapping an `fs.FS`) and applied in
 lexicographic order across all layers. Applied versions are tracked in a
 `schema_migrations` table. SQLite and PostgreSQL dialects are included.
 
-```go
-//go:embed migrations
-var migrations embed.FS
+Migration files live in their own package so the embedded FS is rooted at the
+migrations themselves:
 
+```go
+// migrations/migrations.go
+package migrations
+
+import "embed"
+
+//go:embed *.sql
+var FS embed.FS
+```
+
+```go
 db, _ := sql.Open("sqlite3", "app.db")
 m := migrate.New(
     migrate.NewDriver(db, migrate.SQLiteDialect{}),
-    migrate.WithLayers(migrate.Layer{Name: "app", FS: migrations}),
+    migrate.WithLayers(migrate.Layer{Name: "app", FS: migrations.FS}),
 )
 
 result, err := m.Migrate(ctx)

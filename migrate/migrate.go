@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"path"
 	"sort"
 	"strings"
 )
@@ -86,17 +87,16 @@ func WithTable(name string) Option {
 	return func(m *Migrator) { m.table = name }
 }
 
-// WithDirectory sets the subdirectory within each Layer's FS to read
-// migration files from (default: "migrations"). Use "." to read from
-// the root.
+// WithDirectory sets the subdirectory within each Layer's FS to read migration
+// files from (default: ".", which reads from the root of the FS).
 func WithDirectory(dir string) Option {
 	return func(m *Migrator) { m.dir = dir }
 }
 
-// WithLayers appends one or more Layer values to the migrator. All
-// migrations from all layers are sorted globally by filename before
-// being applied, so date-prefixed filenames (e.g. 20060102_name.sql)
-// produce a correct chronological order across layers.
+// WithLayers appends one or more Layer values to the migrator. All migrations
+// from all layers are sorted globally by filename before being applied, so
+// date-prefixed filenames (e.g. 20060102_name.sql) produce a correct
+// chronological order across layers.
 func WithLayers(layers ...Layer) Option {
 	return func(m *Migrator) { m.layers = append(m.layers, layers...) }
 }
@@ -105,7 +105,7 @@ func WithLayers(layers ...Layer) Option {
 func New(db DB, opts ...Option) *Migrator {
 	m := &Migrator{
 		db:    db,
-		dir:   "migrations",
+		dir:   ".",
 		table: "schema_migrations",
 	}
 	for _, o := range opts {
@@ -223,8 +223,8 @@ func (m *Migrator) discoverMigrations() ([]migrationEntry, error) {
 }
 
 func (m *Migrator) applyMigration(ctx context.Context, e migrationEntry) error {
-	path := m.dir + "/" + e.name
-	content, err := fs.ReadFile(e.layer.FS, path)
+	filePath := path.Join(m.dir, e.name)
+	content, err := fs.ReadFile(e.layer.FS, filePath)
 	if err != nil {
 		return fmt.Errorf("reading migration %s: %w", e.version(), err)
 	}
