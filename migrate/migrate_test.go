@@ -213,7 +213,7 @@ func TestCustomTableAndDirectory(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
-func TestEmptyMigrations(t *testing.T) {
+func TestEmptyLayerErrors(t *testing.T) {
 	_, db := openTestDB(t)
 
 	fsys := fstest.MapFS{
@@ -221,8 +221,24 @@ func TestEmptyMigrations(t *testing.T) {
 	}
 
 	m := New(db, WithLayers(testLayer("test", fsys)))
-	result, err := m.Migrate(context.Background())
-	assert.NoError(t, err)
-	assert.Equal(t, 0, len(result.Applied))
-	assert.Equal(t, 0, result.Total)
+	_, err := m.Migrate(context.Background())
+	assert.IsError(t, err, ErrNoMigrations)
+
+	_, err = m.Pending(context.Background())
+	assert.IsError(t, err, ErrNoMigrations)
+}
+
+// A layer whose .sql files sit under migrations/ while dir is the default "."
+// is the most likely misconfiguration, since //go:embed migrations keeps the
+// directory prefix.
+func TestLayerWithNestedMigrationsErrors(t *testing.T) {
+	_, db := openTestDB(t)
+
+	fsys := fstest.MapFS{
+		"migrations/0001_init.sql": {Data: []byte("CREATE TABLE a (id INTEGER);")},
+	}
+
+	m := New(db, WithLayers(testLayer("test", fsys)))
+	_, err := m.Migrate(context.Background())
+	assert.IsError(t, err, ErrNoMigrations)
 }

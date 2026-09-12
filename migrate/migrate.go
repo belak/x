@@ -97,6 +97,9 @@ func WithDirectory(dir string) Option {
 // from all layers are sorted globally by filename before being applied, so
 // date-prefixed filenames (e.g. 20060102_name.sql) produce a correct
 // chronological order across layers.
+//
+// Every layer must contain at least one .sql file in the configured directory,
+// otherwise Migrate and Pending return ErrNoMigrations.
 func WithLayers(layers ...Layer) Option {
 	return func(m *Migrator) { m.layers = append(m.layers, layers...) }
 }
@@ -210,10 +213,15 @@ func (m *Migrator) discoverMigrations() ([]migrationEntry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("reading migrations for layer %q from %q: %w", layer.Name, m.dir, err)
 		}
+		found := 0
 		for _, e := range dirEntries {
 			if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
 				entries = append(entries, migrationEntry{layer: layer, name: e.Name()})
+				found++
 			}
+		}
+		if found == 0 {
+			return nil, fmt.Errorf("layer %q in %q: %w", layer.Name, m.dir, ErrNoMigrations)
 		}
 	}
 	sort.SliceStable(entries, func(i, j int) bool {
