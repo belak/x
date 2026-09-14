@@ -33,28 +33,3 @@ func (n NoListFS) Open(name string) (fs.File, error) {
 
 	return f, nil
 }
-
-// MergedFS combines multiple fs.FSs into one, trying each in order and
-// returning the first successful match. This is useful for serving assets from
-// several sources, such as combining a shared "common" package with an
-// app-specific one.
-type MergedFS []fs.FS
-
-func (m MergedFS) Open(name string) (fs.File, error) {
-	var err error
-
-	for _, fsys := range m {
-		var f fs.File
-
-		f, err = fsys.Open(name)
-		if err == nil {
-			return f, nil
-		}
-	}
-
-	if err == nil {
-		err = os.ErrNotExist
-	}
-
-	return nil, err
-}
