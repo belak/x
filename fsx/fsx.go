@@ -25,7 +25,7 @@ func (n NoListFS) Open(name string) (fs.File, error) {
 	}
 
 	if s.IsDir() {
-		if _, err := n.FS.Open(path.Join(name, "index.html")); err != nil {
+		if _, err := fs.Stat(n.FS, path.Join(name, "index.html")); err != nil {
 			f.Close()
 			return nil, os.ErrNotExist
 		}
