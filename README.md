@@ -46,15 +46,18 @@ ctx := pass.NewContext(
 
 Filesystem wrappers and utilities.
 
-`NoListFS` wraps any `http.FileSystem` and disables directory listings: any
-directory without an `index.html` returns a 404 instead of a file listing.
+`NoListFS` wraps any `fs.FS` and disables directory listings: any directory
+without an `index.html` returns a 404 instead of a file listing.
 
 ```go
 //go:embed static
 var staticFiles embed.FS
 
+// The embedded paths keep their "static/" prefix, so descend into it first.
+static, _ := fs.Sub(staticFiles, "static")
+
 http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(
-    fsx.NoListFS{FS: http.FS(staticFiles)},
+    http.FS(fsx.NoListFS{FS: static}),
 )))
 ```
 
