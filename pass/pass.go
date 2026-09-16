@@ -20,7 +20,6 @@ package pass
 import (
 	"errors"
 	"sync"
-	"testing"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -111,8 +110,9 @@ func (c *Context) NeedsUpdate(hash string) bool {
 	return false
 }
 
-// NewTestContext returns a Context with minimal-cost hashers for use in tests.
-// The parameters are intentionally weak — do not use in production.
+// NewTestContext returns a Context with minimal-cost hashers for use in
+// tests. The parameters are intentionally weak — use NewDefaultContext in
+// production code.
 func NewTestContext() *Context {
 	return NewContext(
 		Argon2id{Memory: 8 * 1024, Iterations: 1, Parallelism: 1},
@@ -120,13 +120,10 @@ func NewTestContext() *Context {
 	)
 }
 
-// NewDefaultContext returns a Context suitable for most applications. Outside
-// of tests it uses RFC 9106 low-memory Argon2id as the primary hasher with
-// bcrypt accepted for migration. Under go test it delegates to NewTestContext
-// so that test suites do not pay full hashing costs.
+// NewDefaultContext returns a Context suitable for most applications: RFC
+// 9106 low-memory Argon2id as the primary hasher, with bcrypt accepted for
+// migration. Tests that are sensitive to hashing speed should use
+// NewTestContext instead.
 func NewDefaultContext() *Context {
-	if testing.Testing() {
-		return NewTestContext()
-	}
 	return NewContext(RFC9106LowMemory, Bcrypt{})
 }
