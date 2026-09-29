@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"slices"
+	"strings"
 
 	"github.com/belak/x/slogx"
 	"github.com/felixge/httpsnoop"
@@ -88,14 +89,26 @@ func Logging(logger *slog.Logger) Middleware {
 
 			m := httpsnoop.CaptureMetrics(next, w, r)
 
+			route := r.Pattern
+			if i := strings.IndexAny(r.Pattern, " \t"); i >= 0 {
+				route = strings.TrimSpace(r.Pattern[i:])
+			}
+
+			httpAttrs := []any{
+				slogx.String("method", r.Method),
+				slogx.String("path", r.URL.Path),
+			}
+			if route != "" {
+				httpAttrs = append(httpAttrs, slogx.String("route", route))
+			}
+			httpAttrs = append(httpAttrs,
+				slogx.Int("status", m.Code),
+				slogx.Duration("duration", m.Duration),
+				slogx.Int64("bytes", m.Written),
+			)
+
 			reqLogger.Info("http request",
-				slogx.Group("http",
-					slogx.String("method", r.Method),
-					slogx.String("path", r.URL.Path),
-					slogx.Int("status", m.Code),
-					slogx.Duration("duration", m.Duration),
-					slogx.Int64("bytes", m.Written),
-				),
+				slogx.Group("http", httpAttrs...),
 			)
 		})
 	}

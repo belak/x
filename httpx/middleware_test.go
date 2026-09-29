@@ -1,6 +1,9 @@
 package httpx_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -118,4 +121,44 @@ func TestWrap(t *testing.T) {
 	h := httpx.Wrap(endpoint, nil, mw("m1"), nil, mw("m2"))
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 	assert.Equal(t, []string{"m1", "m2", "endpoint"}, order)
+}
+
+func TestLogging_Route(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		pattern string
+		path    string
+		want    string
+	}{
+		{"GET /items/{id}", "/items/42", "/items/{id}"},
+		{"GET\t/items/{id}", "/items/42", "/items/{id}"},
+		{"", "/not-found", ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.pattern, func(t *testing.T) {
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+			router := httpx.NewRouter()
+			if tc.pattern != "" {
+				router.Handle(tc.pattern, func(w http.ResponseWriter, r *http.Request) {})
+			}
+			httpx.Wrap(router, httpx.Logging(logger)).ServeHTTP(
+				httptest.NewRecorder(),
+				httptest.NewRequest(http.MethodGet, tc.path, nil),
+			)
+
+			var entry map[string]any
+			assert.NoError(t, json.Unmarshal(buf.Bytes(), &entry))
+			httpGroup := entry["http"].(map[string]any)
+			assert.Equal(t, tc.path, httpGroup["path"].(string))
+			if tc.want != "" {
+				assert.Equal(t, tc.want, httpGroup["route"].(string))
+			} else {
+				assert.Equal(t, nil, httpGroup["route"])
+			}
+		})
+	}
 }
