@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"slices"
 
 	"github.com/belak/x/slogx"
 	"github.com/felixge/httpsnoop"
@@ -14,6 +15,26 @@ import (
 
 // Middleware is the standard middleware signature.
 type Middleware func(http.Handler) http.Handler
+
+// Wrap chains middlewares around any http.Handler. The first middleware in
+// the slice is outermost (runs first).
+//
+// Recommended transport order:
+//
+//	httpx.Wrap(router,
+//	    httpx.WithRequestID,
+//	    httpx.Logging(logger),
+//	    httpx.Recovery(logger, nil),
+//	    httpx.SecurityHeaders,
+//	)
+func Wrap(h http.Handler, mws ...Middleware) http.Handler {
+	for _, mw := range slices.Backward(mws) {
+		if mw != nil {
+			h = mw(h)
+		}
+	}
+	return h
+}
 
 type contextKey string
 

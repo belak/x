@@ -60,11 +60,7 @@ func (r *Router) Group(fn func(*Router)) {
 // Handle registers a handler for the given pattern with all active
 // middleware applied.
 func (r *Router) Handle(pattern string, handler http.HandlerFunc) {
-	var h http.Handler = handler
-	for _, mw := range slices.Backward(r.middlewares) {
-		h = mw(h)
-	}
-	r.inner.Handle(pattern, h)
+	r.inner.Handle(pattern, Wrap(handler, r.middlewares...))
 }
 
 // ServeHTTP implements http.Handler.

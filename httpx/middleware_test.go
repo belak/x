@@ -95,3 +95,27 @@ func TestCSPSetsHeader(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	assert.Equal(t, policy, w.Header().Get("Content-Security-Policy"))
 }
+
+func TestWrap(t *testing.T) {
+	t.Parallel()
+
+	var order []string
+	mw := func(tag string) httpx.Middleware {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				order = append(order, tag)
+				next.ServeHTTP(w, r)
+			})
+		}
+	}
+
+	endpoint := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		order = append(order, "endpoint")
+	})
+
+	assert.Equal(t, http.Handler(endpoint), httpx.Wrap(endpoint))
+
+	h := httpx.Wrap(endpoint, nil, mw("m1"), nil, mw("m2"))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	assert.Equal(t, []string{"m1", "m2", "endpoint"}, order)
+}
