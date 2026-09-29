@@ -2,10 +2,12 @@ package httpx_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -158,6 +160,69 @@ func TestLogging_Route(t *testing.T) {
 				assert.Equal(t, tc.want, httpGroup["route"].(string))
 			} else {
 				assert.Equal(t, nil, httpGroup["route"])
+			}
+		})
+	}
+}
+
+func TestLogging_AddLogAttrs(t *testing.T) {
+	t.Parallel()
+
+	// Safe no-op outside middleware
+	httpx.AddLogAttrs(context.Background(), slog.String("ignored", "val"))
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	handler := httpx.Logging(logger)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var wg sync.WaitGroup
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func(v int) {
+				defer wg.Done()
+				httpx.AddLogAttrs(r.Context(), slog.Int("worker", v))
+			}(i)
+		}
+		wg.Wait()
+		httpx.AddLogAttrs(r.Context(), slog.String("custom", "val"))
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	var entry map[string]any
+	assert.NoError(t, json.Unmarshal(buf.Bytes(), &entry))
+	assert.Equal(t, "val", entry["custom"].(string))
+}
+
+func TestLogging_StatusAndPanic(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		handler  http.HandlerFunc
+		wantLvl  string
+		hasPanic bool
+	}{
+		{"200 info", func(w http.ResponseWriter, r *http.Request) {}, "INFO", false},
+		{"400 warn", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(400) }, "WARN", false},
+		{"500 error", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(500) }, "ERROR", false},
+		{"panic error", func(w http.ResponseWriter, r *http.Request) { panic("boom") }, "ERROR", true},
+		{"committed panic error", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200); panic("late") }, "ERROR", true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&buf, nil))
+			h := httpx.Wrap(tc.handler, httpx.Logging(logger), httpx.Recovery(logger, nil))
+			h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+			lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+			var entry map[string]any
+			assert.NoError(t, json.Unmarshal(lines[len(lines)-1], &entry))
+			assert.Equal(t, tc.wantLvl, entry["level"].(string))
+			if tc.hasPanic {
+				assert.NotEqual(t, nil, entry["error.panic"])
 			}
 		})
 	}

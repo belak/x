@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/belak/x/slogx"
 	"github.com/felixge/httpsnoop"
@@ -36,6 +37,8 @@ func Wrap(h http.Handler, mws ...Middleware) http.Handler {
 	}
 	return h
 }
+
+const panicAttrKey = "error.panic"
 
 type contextKey string
 
@@ -74,20 +77,76 @@ func generateRequestID() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// Logging creates middleware that logs each request with method, path,
-// status, duration, and bytes written. It attaches a child logger with
-// the request ID to the context.
+type logAccumulatorKey struct{}
+
+type logAccumulator struct {
+	mu    sync.Mutex
+	attrs []slog.Attr
+}
+
+func (a *logAccumulator) add(attrs ...slog.Attr) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.attrs = append(a.attrs, attrs...)
+}
+
+func (a *logAccumulator) getAttrs() []slog.Attr {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]slog.Attr(nil), a.attrs...)
+}
+
+func (a *logAccumulator) hasAttr(key string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, attr := range a.attrs {
+		if attr.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
+// AddLogAttrs attaches attributes to the request's canonical log line.
+// Attributes are buffered and emitted once when Logging completes. If
+// Logging is not in the middleware chain, AddLogAttrs is a safe no-op.
+func AddLogAttrs(ctx context.Context, attrs ...slog.Attr) {
+	if acc, ok := ctx.Value(logAccumulatorKey{}).(*logAccumulator); ok && acc != nil {
+		acc.add(attrs...)
+	}
+}
+
+// Logging creates middleware that emits a single canonical log line (or "wide
+// event") per request, capturing method, path, route pattern, status code,
+// duration, and bytes written.
+//
+// Handlers and inner middleware can attach contextual attributes to this line
+// using AddLogAttrs rather than emitting separate log records (see
+// https://stripe.com/blog/canonical-log-lines or https://loggingsucks.com).
 func Logging(logger *slog.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			requestID := GetRequestID(r.Context())
+			acc := &logAccumulator{}
+			ctx := context.WithValue(r.Context(), logAccumulatorKey{}, acc)
+
+			requestID := GetRequestID(ctx)
 
 			// Child logger with request ID for downstream handlers.
 			reqLogger := logger.With(slogx.String("request_id", requestID))
-			ctx := slogx.WithLogger(r.Context(), reqLogger)
+			ctx = slogx.WithLogger(ctx, reqLogger)
 			r = r.WithContext(ctx)
 
 			m := httpsnoop.CaptureMetrics(next, w, r)
+
+			level := slog.LevelInfo
+			if m.Code >= 500 {
+				level = slog.LevelError
+			} else if m.Code >= 400 {
+				level = slog.LevelWarn
+			}
+			if acc.hasAttr(panicAttrKey) {
+				level = slog.LevelError
+			}
 
 			route := r.Pattern
 			if i := strings.IndexAny(r.Pattern, " \t"); i >= 0 {
@@ -107,9 +166,12 @@ func Logging(logger *slog.Logger) Middleware {
 				slogx.Int64("bytes", m.Written),
 			)
 
-			reqLogger.Info("http request",
+			attrs := []slog.Attr{
 				slogx.Group("http", httpAttrs...),
-			)
+			}
+			attrs = append(attrs, acc.getAttrs()...)
+
+			reqLogger.LogAttrs(ctx, level, "http request", attrs...)
 		})
 	}
 }
@@ -126,6 +188,7 @@ func Recovery(logger *slog.Logger, errHandler PanicHandlerFunc) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
+					AddLogAttrs(r.Context(), slogx.Any(panicAttrKey, err))
 					logger.Error("panic recovered",
 						slogx.Any("error", err),
 						slogx.String("method", r.Method),
